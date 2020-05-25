@@ -1,0 +1,264 @@
+{
+	"name": "pipeline1",
+	"properties": {
+		"activities": [
+			{
+				"name": "LKP",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": "select relativeurl from url_test",
+						"queryTimeout": "02:00:00"
+					},
+					"dataset": {
+						"referenceName": "AzureSqlTable1",
+						"type": "DatasetReference"
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Iteration",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "LKP",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('LKP').output.value",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Copy data1",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "RestSource",
+									"httpRequestTimeout": "00:01:40",
+									"requestInterval": "00.00:00:00.010",
+									"requestMethod": "GET"
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobStorageWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".txt"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"mappings": [
+										{
+											"source": {
+												"path": "$['status']"
+											},
+											"sink": {
+												"name": "status",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"path": "$['data'][0]['id']"
+											},
+											"sink": {
+												"name": "id",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"path": "$['data'][0]['employee_name']"
+											},
+											"sink": {
+												"name": "employee_name",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"path": "$['data'][0]['employee_salary']"
+											},
+											"sink": {
+												"name": "employee_salary",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"path": "$['data'][0]['employee_age']"
+											},
+											"sink": {
+												"name": "employee_age",
+												"type": "String"
+											}
+										},
+										{
+											"source": {
+												"path": "$['relativeurl']"
+											},
+											"sink": {
+												"name": "relativeurl",
+												"type": "String"
+											}
+										}
+									],
+									"collectionReference": ""
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "RestResource1",
+									"type": "DatasetReference"
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "restapiblob",
+									"type": "DatasetReference"
+								}
+							]
+						}
+					]
+				}
+			},
+			{
+				"name": "Stored procedure1",
+				"type": "SqlServerStoredProcedure",
+				"dependsOn": [
+					{
+						"activity": "Iteration",
+						"dependencyConditions": [
+							"Failed"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"storedProcedureName": "[dbo].[usp_UpdateErrorLogTable]",
+					"storedProcedureParameters": {
+						"ActivityID": {
+							"value": {
+								"value": "@activity('Iteration').activityrunid",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ActivityName": {
+							"value": "Iteration",
+							"type": "String"
+						},
+						"ActivityStartTime": {
+							"value": {
+								"value": "@activity('Iteration').ExecutionStartTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"BatchID": {
+							"value": "",
+							"type": "String"
+						},
+						"ErrorCode": {
+							"value": {
+								"value": "@{activity('Iteration').error.errorCode}",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorDescription": {
+							"value": {
+								"value": "@{activity('Iteration').error.message}",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"ErrorLoggedTime": {
+							"value": {
+								"value": "@utcnow()",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"FailureType": {
+							"value": {
+								"value": "@if(activity('Iteration').error.IsUserError,'UserError','Runtimeerror')",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineID": {
+							"value": {
+								"value": "@pipeline().RunId",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineName": {
+							"value": {
+								"value": "@pipeline().pipeline",
+								"type": "Expression"
+							},
+							"type": "String"
+						},
+						"PipelineStartTime": {
+							"value": {
+								"value": "@pipeline().TriggerTime",
+								"type": "Expression"
+							},
+							"type": "DateTime"
+						},
+						"Source": {
+							"value": "Restapi",
+							"type": "String"
+						}
+					}
+				},
+				"linkedServiceName": {
+					"referenceName": "AzureSqlDatabase1",
+					"type": "LinkedServiceReference"
+				}
+			}
+		],
+		"annotations": []
+	}
+}
